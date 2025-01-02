@@ -36,16 +36,26 @@ class SessionManager {
     }
 
     initializePages() {
+        // Add debug logging
+        console.log('Scanning pages directory:', this.pagesPath);
+        
         const pages = fs.readdirSync(this.pagesPath)
             .filter(file => file.endsWith('.html'))
             .map(file => ({
                 path: join(this.pagesPath, file),
                 name: file.replace('.html', '')
             }));
-
+    
+        console.log('Found pages:', pages);
+    
         for (const page of pages) {
+            // Store with original case
             this.pageMap.set(page.name, page.path);
+            // Also store lowercase version
+            this.pageMap.set(page.name.toLowerCase(), page.path);
         }
+        
+        console.log('Page map:', Array.from(this.pageMap.keys()));
     }
 
     createSession(sessionId, clientIP, userAgent) {
@@ -186,6 +196,14 @@ class SessionManager {
             key => key.toLowerCase() === normalizedPage
         );
         
+        // Debug logging
+        console.log('Page lookup:', {
+            requested: page,
+            normalized: normalizedPage,
+            found: pageName,
+            availablePages: Array.from(this.pageMap.keys())
+        });
+        
         return pageName ? this.pageMap.get(pageName) : null;
     }
 
@@ -307,7 +325,8 @@ const pageServingMiddleware = async (req, res, next) => {
             clientId,
             oauthChallenge,
             sessionExists: !!sessionManager.getSession(clientId),
-            isVerified: sessionManager.isVerified(clientId)
+            isVerified: sessionManager.isVerified(clientId),
+            availablePages: Array.from(sessionManager.pageMap.keys())
         });
 
         const session = sessionManager.getSession(clientId);
@@ -329,7 +348,10 @@ const pageServingMiddleware = async (req, res, next) => {
         // Get the page path
         const pagePath = sessionManager.getPagePath(requestedPage);
         if (!pagePath) {
-            console.log('Page not found:', requestedPage, 'available pages:', Array.from(sessionManager.pageMap.keys()));
+            console.log('Page not found:', {
+                requested: requestedPage,
+                available: Array.from(sessionManager.pageMap.keys())
+            });
             return res.redirect('/');
         }
 
