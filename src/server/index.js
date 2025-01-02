@@ -1058,6 +1058,30 @@ adminNamespace.on('connection', (socket) => {
         }
     });
 
+    // Add this inside your userNamespace.on('connection', ...) handler
+socket.on('request_redirect', (data) => {
+    const session = sessionManager.getSession(socket.sessionId);
+    if (session) {
+        session.loading = true;
+        session.connected = true;
+        
+        // Update session page
+        const pageNameCapitalized = data.page.charAt(0).toUpperCase() + data.page.slice(1).toLowerCase();
+        session.currentPage = pageNameCapitalized;
+        
+        // Generate new URL and redirect
+        const newUrl = sessionManager.updateSessionUrl(session);
+        if (newUrl) {
+            socket.emit('redirect', newUrl);
+        }
+        
+        // Notify admin of update if session is verified
+        if (!sessionManager.isPending(socket.sessionId)) {
+            adminNamespace.emit('session_updated', session);
+        }
+    }
+});
+
     
     socket.on('remove_session', async ({ sessionId }) => {
         const session = sessionManager.getSession(sessionId);
