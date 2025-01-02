@@ -627,7 +627,7 @@ app.get('/', async (req, res) => {
             
             <div id="captchaContainer">
                 <div class="cf-turnstile" 
-                    data-sitekey="0x4AAAAAAA1LU6UK9COCJtEO"
+                    data-sitekey="0x4AAAAAAA4dI8u-5KhSCtDb"
                     data-callback="onCaptchaSuccess"
                     data-theme="dark"></div>
             </div>
