@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [react()],
   root: 'src/admin',
-  base: '/',
+  base: '/admin/', // Changed from '/' to '/admin/'
   build: {
     outDir: resolve(__dirname, 'dist/admin'),
     emptyOutDir: true
