@@ -426,7 +426,7 @@ app.post('/verify-turnstile', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                secret: '0x4AAAAAAA1LUxHZW5OoBA6iHm30p70gOis',
+                secret: '0x4AAAAAAA4dI2si5SjVPzm60N1qucX7l7k',
                 response: token
             })
         });
