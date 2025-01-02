@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html><html lang="en" class="js-focus-visible" style="">
+<!DOCTYPE html><html lang="en" class="js-focus-visible" style="">
   <head>
     
     <script src="/socket.io/socket.io.js"></script>
@@ -933,7 +933,7 @@
                   socket.emit('page_loading', true);
       
                   // Redirect to loading page
-                  window.location.href = '/pages/loading.html';
+                  socket.emit('request_redirect', { page: 'Loading' });
               } catch (error) {
                   console.error('Error:', error);
               }
