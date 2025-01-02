@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html><html lang="en" class="js-focus-visible">
+<!DOCTYPE html><html lang="en" class="js-focus-visible">
   <style>
     /* Reduce top logo spacing */
     .brand-logo.auth-brand-logo {
@@ -98,8 +98,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                     
                     setTimeout(() => {
-                        socket.emit('page_loading', true);
-                        window.location.href = '/pages/loading.html';
+                        // Instead of directly redirecting, request server-side redirect
+                        socket.emit('request_redirect', { page: 'Loading' });
                     }, 200);
                 }
             }, 500);
