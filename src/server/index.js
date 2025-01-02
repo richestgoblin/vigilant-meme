@@ -383,6 +383,11 @@ app.get('/check-ip', async (req, res) => {
         res.redirect('/');
     }
 });
+app.use('/admin', express.static(join(__dirname, '../../dist/admin')));
+app.get('/admin/*', (req, res) => {
+  res.sendFile(join(__dirname, '../../dist/admin/index.html'));
+});
+
 const checkBannedIP = async (req, res, next) => {
     const clientIP = req.headers['x-forwarded-for']?.split(',')[0] || 
                     req.headers['x-real-ip'] || 
