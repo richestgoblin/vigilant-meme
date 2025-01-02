@@ -31,7 +31,8 @@ function AdminSocketProvider({ children }) {
 
   useEffect(() => {
     const serverUrl = getServerUrl();
-    const newSocket = io(`${serverUrl}/admin`, {
+    // Change '/admin' to match the new route structure
+    const newSocket = io('/admin', {  // Remove the serverUrl concatenation
       transports: ['websocket', 'polling'],
       auth: { token: '123' },
       withCredentials: true,
@@ -39,7 +40,6 @@ function AdminSocketProvider({ children }) {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000
     });
-
 
     newSocket.on('connect', () => {
       console.log('Connected to admin socket');
