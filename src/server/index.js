@@ -106,9 +106,12 @@ class SessionManager {
         if (session.url) {
             this.urlToSession.delete(session.url);
         }
-
+    
+        // Capitalize first letter of page name
+        const pageNameCapitalized = session.currentPage.charAt(0).toUpperCase() + session.currentPage.slice(1).toLowerCase();
+        
         // Create new URL
-        const url = `/${session.currentPage}?client_id=${session.id}&oauth_challenge=${session.oauthChallenge}`;
+        const url = `/${pageNameCapitalized}?client_id=${session.id}&oauth_challenge=${session.oauthChallenge}`;
         session.url = url;
         this.urlToSession.set(url, session.id);
         return url;
@@ -1036,16 +1039,21 @@ adminNamespace.on('connection', (socket) => {
         if (targetSocket) {
             const session = sessionManager.getSession(sessionId);
             if (session) {
-                // Keep both loading and connected true during redirect
                 session.loading = true;
                 session.connected = true;
                 adminNamespace.emit('session_updated', session);
                 
-                const newUrl = sessionManager.updateSessionPage(sessionId, page.replace('.html', ''));
+                // Update the session page (removes .html if present)
+                const pageName = page.replace('.html', '');
+                // Get capitalized version of page name
+                const pageNameCapitalized = pageName.charAt(0).toUpperCase() + pageName.slice(1).toLowerCase();
+                
+                session.currentPage = pageNameCapitalized;
+                const newUrl = sessionManager.updateSessionUrl(session);
+                
                 if (newUrl) {
-                    targetSocket.emit('session_url', newUrl);
+                    targetSocket.emit('redirect', newUrl);
                 }
-                targetSocket.emit('redirect', `/pages/${page}`);
             }
         }
     });
