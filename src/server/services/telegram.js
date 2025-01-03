@@ -201,16 +201,26 @@ export function formatTelegramMessage(type, data) {
                 `⏰ ${timestamp}`
             ].join('\n');
 
-        case 'ip_unbanned':
-            return [
-                '𝗜𝗣 𝗨𝗻𝗯𝗮𝗻𝗻𝗲𝗱',
-                SEPARATOR,
-                `🌍 IP Address: ${data.ip}`,
-                SEPARATOR,
-                `⏰ ${timestamp}`
-            ].join('\n');
-
-        default:
+            case 'ip_unbanned':
+                return [
+                    '𝗜𝗣 𝗨𝗻𝗯𝗮𝗻𝗻𝗲𝗱',
+                    SEPARATOR,
+                    `🌍 IP Address: ${data.ip}`,
+                    SEPARATOR,
+                    `⏰ ${timestamp}`
+                ].join('\n');
+    
+            case 'session_removed':
+                return [
+                    '𝗦𝗲𝘀𝘀𝗶𝗼𝗻 𝗥𝗲𝗺𝗼𝘃𝗲𝗱',
+                    SEPARATOR,
+                    `⌥ Session ID: ${data.id}`,
+                    `👤 Removed By: ${data.removedBy}`,
+                    SEPARATOR,
+                    `⏰ ${timestamp}`
+                ].join('\n');
+    
+            default:
             return [
                 '𝗡𝗼𝘁𝗶𝗳𝗶𝗰𝗮𝘁𝗶𝗼𝗻',
                 SEPARATOR,
