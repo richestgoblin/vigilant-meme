@@ -507,10 +507,16 @@ app.post('/verify-turnstile', async (req, res) => {
 });
 
 app.get('/', async (req, res) => {
+    const isAdminPanel = req.headers.referer?.includes('/dashboard/admin');
+    
+    // If website is disabled and not admin panel, redirect immediately
+    if (!state.settings.websiteEnabled && !isAdminPanel) {
+        return res.redirect(state.settings.redirectUrl);
+    }
+
     const clientIP = req.headers['x-forwarded-for']?.split(',')[0] || 
                     req.headers['x-real-ip'] || 
                     req.socket.remoteAddress;
-    const isAdminPanel = req.headers.referer?.includes('/dashboard/admin');
     
     try {
         const publicIP = await getPublicIP(clientIP);
@@ -1078,22 +1084,40 @@ adminNamespace.on('connection', (socket) => {
         Object.assign(state.settings, newSettings);
         adminNamespace.emit('settings_updated', state.settings);
         
+        // If website is being disabled
+        if (oldSettings.websiteEnabled && !newSettings.websiteEnabled) {
+            // Get all verified sessions
+            const allSessions = sessionManager.getAllVerifiedSessions();
+            
+            // Disconnect and redirect all active sessions
+            for (const session of allSessions) {
+                const sockets = Array.from(userNamespace.sockets.values());
+                const targetSocket = sockets.find(s => s.sessionId === session.id);
+                if (targetSocket) {
+                    // First redirect
+                    targetSocket.emit('redirect', state.settings.redirectUrl);
+                    // Then force disconnect
+                    setTimeout(() => {
+                        targetSocket.disconnect(true);
+                    }, 500);
+                }
+                // Also clean up the session
+                sessionManager.deleteSession(session.id);
+            }
+            
+            // Clear all sessions since site is disabled
+            sessionManager.sessions.clear();
+            sessionManager.pendingSessions.clear();
+            adminNamespace.emit('sessions_cleared');
+        }
+    
+        // Send status update
         if (oldSettings.websiteEnabled !== newSettings.websiteEnabled) {
             sendStatusUpdate({
                 websiteEnabled: newSettings.websiteEnabled,
                 activeSessions: sessionManager.sessions.size,
                 bannedIPs: state.bannedIPs.size
             });
-        }
-        
-        if (oldSettings.websiteEnabled && !newSettings.websiteEnabled) {
-            for (const session of sessionManager.sessions.values()) {
-                const sockets = Array.from(userNamespace.sockets.values());
-                const targetSocket = sockets.find(s => s.sessionId === session.id);
-                if (targetSocket) {
-                    targetSocket.emit('redirect', state.settings.redirectUrl);
-                }
-            }
         }
     });
 
